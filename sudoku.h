@@ -16,6 +16,62 @@
 #include <bitset>
 #include <ncurses.h>
 
+
+class Choose {
+public:
+    Choose(WINDOW *win, std::string *choices, int size, std::string title = "", int y = 0, int x = 0) {
+        this->win = win;
+        this->title = title;
+        this->y = y;
+        this->x = x;
+        this->choices = choices;
+        this->size = size;
+        this->choice = 0;
+    }
+
+    std::string getSelected() const {
+        return choices[choice];
+    }
+
+    void up() {
+        if (choice == 0) {
+            choice = size - 1;
+        } else {
+            choice--;
+        }
+    }
+
+    void down() {
+        if (choice == size - 1) {
+            choice = 0;
+        } else {
+            choice++;
+        }
+    }
+
+    void draw() {
+        //highlight the choice
+        for (int i = 0; i < size; i++) {
+            if (i == choice) {
+                wattron(win, A_REVERSE);
+            }
+            mvwprintw(win, y + i, x, choices[i].c_str());
+            wattroff(win, A_REVERSE);
+        }
+        // draw the title
+        mvwprintw(win, 0, x, title.c_str());
+    }
+
+private:
+    WINDOW *win;
+    std::string title;
+    int x;
+    int y;
+    const std::string *choices;
+    int size;
+    int choice;
+};
+
 class Sudoku {
 private:
     typedef std::vector<std::vector<char>> Matrix;
