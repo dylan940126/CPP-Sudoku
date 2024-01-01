@@ -82,7 +82,12 @@ private:
     bool generate(int row, int *candis);
 
     class Solution {
+        int size;
     public:
+        Solution(int size) {
+            this->size = size;
+        }
+
         std::bitset<9> getPossibleStatus(int x, int y) {
             return ~(rows[x] | cols[y] | cells[x / 3][y / 3]);
         }
@@ -103,9 +108,9 @@ private:
         }
 
         void fillNum(int x, int y, int n, bool fillFlag) {
-            rows[x][n] = (fillFlag) ? 1 : 0;
-            cols[y][n] = (fillFlag) ? 1 : 0;
-            cells[x / 3][y / 3][n] = (fillFlag) ? 1 : 0;
+            rows[x][n] = fillFlag;
+            cols[y][n] = fillFlag;
+            cells[x / 3][y / 3][n] = fillFlag;
         }
 
         bool dfs(std::vector<std::vector<char>> &board, int cnt) {

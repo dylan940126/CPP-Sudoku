@@ -27,10 +27,13 @@ int main() {
         if (choosingsize) {
             box(w_size, 0, 0);
             wborder(w_difficulty, ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ');
-        }
-        else {
+//            box(w_difficulty, ' ', ' ');
+//            box(w_difficulty, '|', 0);
+        } else {
             box(w_difficulty, 0, 0);
             wborder(w_size, ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ');
+//            box(w_size, ' ', ' ');
+//            box(w_size, '|', 0);
         }
         sudoku_size.draw();
         sudoku_difficulty.draw();
@@ -38,13 +41,13 @@ int main() {
         wrefresh(w_difficulty);
         switch (getch()) {
             case KEY_UP:
-                if(choosingsize)
+                if (choosingsize)
                     sudoku_size.up();
                 else
                     sudoku_difficulty.up();
                 break;
             case KEY_DOWN:
-                if(choosingsize)
+                if (choosingsize)
                     sudoku_size.down();
                 else
                     sudoku_difficulty.down();
