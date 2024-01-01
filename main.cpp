@@ -1,6 +1,9 @@
 // this is a sudoku game
+#include <csignal>
 #include "sudoku.h"
 
+#define LINES getmaxy(stdscr)
+#define COLS getmaxx(stdscr)
 using namespace std;
 
 
@@ -55,12 +58,27 @@ int main() {
             case '\n':
                 clear();
                 refresh();
+                delwin(w_size);
+                delwin(w_difficulty);
                 ok = true;
                 break;
             default:
                 break;
         }
+        usleep(1000);
     }
+    // print sudoku
+    vector<vector<chtype>> sudoku = Sudoku::printsudoku(
+            sudoku_size.getSelected() == "9x9" ? 9 : sudoku_size.getSelected() == "16x16" ? 16 : 25);
+    for (int i = 0; i < sudoku.size(); i++) {
+        for (int j = 0; j < sudoku[i].size(); j++) {
+            mvaddch((LINES - sudoku.size()) / 2 + i, (COLS - sudoku[0].size()) / 2 + j, sudoku[i][j]);
+        }
+    }
+    refresh();
+//    mvprintw(LINES / 2 - 5, COLS / 2 - 4, sudoku);
+
+    while (getch() != '\n');
     curs_set(1);
     endwin();
     return 0;

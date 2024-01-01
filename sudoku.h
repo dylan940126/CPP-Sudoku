@@ -162,6 +162,57 @@ public:
     void generate();
 
     void sovle();
+
+    static std::vector<std::vector<chtype>> printsudoku(int size) {
+        std::vector<std::vector<chtype>> ans;
+        int size2 = sqrt(size);
+        for (int i = 0; i < size2; i++) {
+            ans.emplace_back(1, ACS_LTEE);
+            for (int j = 0; j < size2; j++) {
+                ans.emplace_back(1, ACS_VLINE);
+            }
+        }
+        ans[0][0] = ACS_ULCORNER;
+        ans.emplace_back(1, ACS_LLCORNER);
+        for (int i = 0; i < size2; i++) {
+            for (std::vector<chtype> &i: ans) {
+                if (i[0] == ACS_LTEE) {
+                    for (int j = 0; j < size2 * 2 + 1; j++) {
+                        i.emplace_back(ACS_HLINE);
+                    }
+                    i.emplace_back(ACS_PLUS);
+                } else if (i[0] == ACS_VLINE) {
+                    for (int j = 0; j < size2 * 2 + 1; j++) {
+                        i.emplace_back(' ');
+                    }
+                    i.emplace_back(ACS_VLINE);
+                } else if (i[0] == ACS_LLCORNER) {
+                    for (int j = 0; j < size2 * 2 + 1; j++) {
+                        i.emplace_back(ACS_HLINE);
+                    }
+                    i.emplace_back(ACS_BTEE);
+                } else if (i[0] == ACS_ULCORNER) {
+                    for (int j = 0; j < size2 * 2 + 1; j++) {
+                        i.emplace_back(ACS_HLINE);
+                    }
+                    i.emplace_back(ACS_TTEE);
+                }
+            }
+        }
+        for (std::vector<chtype> &i: ans) {
+            if (i.back() == ACS_PLUS) {
+                i.pop_back();
+                i.emplace_back(ACS_RTEE);
+            } else if (i.back() == ACS_BTEE) {
+                i.pop_back();
+                i.emplace_back(ACS_LRCORNER);
+            } else if (i.back() == ACS_TTEE) {
+                i.pop_back();
+                i.emplace_back(ACS_URCORNER);
+            }
+        }
+        return ans;
+    }
 };
 
 Sudoku::Sudoku(int size) {
