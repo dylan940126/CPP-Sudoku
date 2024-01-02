@@ -11,11 +11,35 @@
 #define NYCU_SUDOKU_H
 
 #include <vector>
-#include <cassert>
 #include <cmath>
 #include <bitset>
-#include <ncurses.h>
+#include <ncursesw/ncurses.h>
+#include <fstream>
+#include <cassert>
 
+void init_ncurses() {
+    setlocale(LC_ALL, "");
+    system("sleep 0.01");
+    initscr();
+    cbreak();
+    noecho();
+    nodelay(stdscr, TRUE);
+    keypad(stdscr, TRUE);
+    curs_set(0);
+    start_color();
+//    init_pair(1, COLOR_BLUE, COLOR_BLACK);
+//    init_pair(2, COLOR_GREEN, COLOR_BLACK);
+//    init_pair(3, COLOR_RED, COLOR_BLACK);
+}
+
+void print_asciiart(WINDOW *win, int y, int x, const std::string &file) {
+    std::ifstream f(file);
+    std::string line;
+    while (getline(f, line)) {
+        mvwprintw(win, y++, x, "%s", line.c_str());
+    }
+    f.close();
+}
 
 class Choose {
 public:
@@ -34,17 +58,13 @@ public:
     }
 
     void up() {
-        if (choice == 0) {
-            choice = size - 1;
-        } else {
+        if (choice > 0) {
             choice--;
         }
     }
 
     void down() {
-        if (choice == size - 1) {
-            choice = 0;
-        } else {
+        if (choice < size - 1) {
             choice++;
         }
     }
@@ -55,11 +75,11 @@ public:
             if (i == choice) {
                 wattron(win, A_REVERSE);
             }
-            mvwprintw(win, y + i, x, choices[i].c_str());
+            mvwprintw(win, y + i, x, "%s", choices[i].c_str());
             wattroff(win, A_REVERSE);
         }
         // draw the title
-        mvwprintw(win, 0, x, title.c_str());
+        mvwprintw(win, 0, x, "%s", title.c_str());
     }
 
 private:
