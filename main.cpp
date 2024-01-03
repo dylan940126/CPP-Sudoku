@@ -1,7 +1,6 @@
 // this is a sudoku game
 #include <csignal>
 #include "sudoku.h"
-#include <fstream>
 
 using namespace std;
 
@@ -12,9 +11,9 @@ int main() {
     while (true) {
 // user input page
         // print ascii art
-        print_asciiart(stdscr, 2, (COLS - 51) / 2, "sudoku-text.txt");
+        draw_asciiart(stdscr, 2, (COLS - 51) / 2, "sudoku-text.txt");
         // print instructions
-        mvprintw(21, COLS / 2 - 10, "Press Enter to Start");
+        mvprintw(22, (COLS - 35) / 2, "Press Enter to Restart or q to Quit");
         refresh();
         // wait for enter
         string size_choices[] = {"4x4", "9x9", "16x16", "Custom"};
@@ -75,7 +74,7 @@ int main() {
 
 // sudoku game page
         // print ascii art
-        print_asciiart(stdscr, 2, (COLS - 51) / 2, "sudoku-text.txt");
+        draw_asciiart(stdscr, 2, (COLS - 51) / 2, "sudoku-text.txt");
         refresh();
         // print sudoku
         Sudoku su;
@@ -87,9 +86,16 @@ int main() {
         }
         su.generate(sudoku_difficulty.getSelected());
         // print instructions
-        print_asciiart(stdscr, 8+su.get_size()/2, (COLS - 80) / 2, "manual.txt");
+        draw_asciiart(stdscr, 8 + su.get_size() / 2, (COLS - 80) / 2, "manual.txt");
         ok = false;
+        time_t last_timer = time(nullptr);
+        double timer = 0;
         while (!ok) {
+            // timer
+            timer += difftime(time(nullptr), last_timer);
+            last_timer = time(nullptr);
+            mvprintw(11 + su.get_size() / 2, (COLS + 50) / 2, "Time: %02d:%02d", (int) timer / 60, (int) timer % 60);
+
             wchar_t c = getch();
             if (c != ERR) {
                 switch (c) {
@@ -124,9 +130,42 @@ int main() {
             su.drawsudoku(stdscr, 10, COLS / 2);
             refresh();
         }
-        // fill?
+        clear();
+
+// finish page
+        wchar_t c;
+        if (su.finished()) {
+            mvprintw(25, (COLS - 35) / 2, "Press Enter to Restart or q to Quit");
+            WINDOW *win = newwin(18, 80, 5, (COLS - 80) / 2);
+            int i = 79;
+            while (true) {
+                c = getch();
+                if (c == L'\n' || c == L'q')
+                    break;
+                wclear(win);
+                if (!draw_asciiart(win, 3, i--, "congradulations.txt"))
+                    i = 79;
+                box(win, '-', 0);
+                wrefresh(win);
+            }
+        } else {
+            mvprintw(25, (COLS - 35) / 2, "Press Enter to Restart or q to Quit");
+            WINDOW *win = newwin(10, 56, 5, (COLS - 56) / 2);
+            int i = 79;
+            while (true) {
+                c = getch();
+                if (c == L'\n' || c == L'q')
+                    break;
+                wclear(win);
+                draw_asciiart(win, 1, 1, "fail" + to_string((i++) % 4) + ".txt");
+                wrefresh(win);
+                system("sleep 0.2");
+            }
+        }
         clear();
         refresh();
+        if (c == L'q')
+            break;
     }
     end_ncurses();
     return 0;

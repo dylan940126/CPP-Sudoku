@@ -18,6 +18,7 @@
 #include <cassert>
 #include <algorithm>
 #include <codecvt>
+#include <ctime>
 #include "gen_sudoku.cpp"
 
 typedef std::vector<std::vector<char>> Matrix;
@@ -39,7 +40,7 @@ void init_ncurses() {
     initscr();
     cbreak();
     noecho();
-    timeout(50);
+    timeout(20);
     keypad(stdscr, TRUE);
     curs_set(0);
     start_color();
@@ -57,22 +58,24 @@ void end_ncurses() {
     endwin();
 }
 
-bool print_asciiart(WINDOW *win, int y, int x, const std::string &file) {
+bool draw_asciiart(WINDOW *win, int y, int x, const std::string &file) {
     if (x > getmaxx(win) || y > getmaxy(win))
         return false;
     bool flag = false;
     std::ifstream f(file);
     std::string line;
     std::wstring line2;
-    int xx, yy = y;
-    while (getline(f, line)) {
+    int xx;
+    while (y < 0)
+        y++, getline(f, line);
+    while (y <= getmaxy(win) && getline(f, line)) {
         line2 = to_wide_string(line);
         if (x < 0) {
-            if (-x <= line2.size())
-                line2 = line2.substr(-x);
-            else {
+            if (-x > line2.size()) {
+                y++;
                 continue;
             }
+            line2 = line2.substr(-x);
             xx = 0;
         } else {
             xx = x;
@@ -82,7 +85,7 @@ bool print_asciiart(WINDOW *win, int y, int x, const std::string &file) {
         }
         if (line2.size() > 0)
             flag = true;
-        mvwprintw(win, yy++, xx, "%s", to_byte_string(line2).c_str());
+        mvwprintw(win, y++, xx, "%s", to_byte_string(line2).c_str());
     }
     f.close();
     return flag;
