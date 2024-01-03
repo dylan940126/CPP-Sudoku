@@ -16,6 +16,62 @@
 #include <bitset>
 #include <ncurses.h>
 
+
+class Choose {
+public:
+    Choose(WINDOW *win, std::string *choices, int size, std::string title = "", int y = 0, int x = 0) {
+        this->win = win;
+        this->title = title;
+        this->y = y;
+        this->x = x;
+        this->choices = choices;
+        this->size = size;
+        this->choice = 0;
+    }
+
+    std::string getSelected() const {
+        return choices[choice];
+    }
+
+    void up() {
+        if (choice == 0) {
+            choice = size - 1;
+        } else {
+            choice--;
+        }
+    }
+
+    void down() {
+        if (choice == size - 1) {
+            choice = 0;
+        } else {
+            choice++;
+        }
+    }
+
+    void draw() {
+        //highlight the choice
+        for (int i = 0; i < size; i++) {
+            if (i == choice) {
+                wattron(win, A_REVERSE);
+            }
+            mvwprintw(win, y + i, x, choices[i].c_str());
+            wattroff(win, A_REVERSE);
+        }
+        // draw the title
+        mvwprintw(win, 0, x, title.c_str());
+    }
+
+private:
+    WINDOW *win;
+    std::string title;
+    int x;
+    int y;
+    const std::string *choices;
+    int size;
+    int choice;
+};
+
 class Sudoku {
 private:
     typedef std::vector<std::vector<char>> Matrix;
@@ -26,7 +82,12 @@ private:
     bool generate(int row, int *candis);
 
     class Solution {
+        int size;
     public:
+        Solution(int size) {
+            this->size = size;
+        }
+
         std::bitset<9> getPossibleStatus(int x, int y) {
             return ~(rows[x] | cols[y] | cells[x / 3][y / 3]);
         }
@@ -47,9 +108,9 @@ private:
         }
 
         void fillNum(int x, int y, int n, bool fillFlag) {
-            rows[x][n] = (fillFlag) ? 1 : 0;
-            cols[y][n] = (fillFlag) ? 1 : 0;
-            cells[x / 3][y / 3][n] = (fillFlag) ? 1 : 0;
+            rows[x][n] = fillFlag;
+            cols[y][n] = fillFlag;
+            cells[x / 3][y / 3][n] = fillFlag;
         }
 
         bool dfs(std::vector<std::vector<char>> &board, int cnt) {
@@ -106,6 +167,57 @@ public:
     void generate();
 
     void sovle();
+
+    static std::vector<std::vector<chtype>> printsudoku(int size) {
+        std::vector<std::vector<chtype>> ans;
+        int size2 = sqrt(size);
+        for (int i = 0; i < size2; i++) {
+            ans.emplace_back(1, ACS_LTEE);
+            for (int j = 0; j < size2; j++) {
+                ans.emplace_back(1, ACS_VLINE);
+            }
+        }
+        ans[0][0] = ACS_ULCORNER;
+        ans.emplace_back(1, ACS_LLCORNER);
+        for (int i = 0; i < size2; i++) {
+            for (std::vector<chtype> &i: ans) {
+                if (i[0] == ACS_LTEE) {
+                    for (int j = 0; j < size2 * 2 + 1; j++) {
+                        i.emplace_back(ACS_HLINE);
+                    }
+                    i.emplace_back(ACS_PLUS);
+                } else if (i[0] == ACS_VLINE) {
+                    for (int j = 0; j < size2 * 2 + 1; j++) {
+                        i.emplace_back(' ');
+                    }
+                    i.emplace_back(ACS_VLINE);
+                } else if (i[0] == ACS_LLCORNER) {
+                    for (int j = 0; j < size2 * 2 + 1; j++) {
+                        i.emplace_back(ACS_HLINE);
+                    }
+                    i.emplace_back(ACS_BTEE);
+                } else if (i[0] == ACS_ULCORNER) {
+                    for (int j = 0; j < size2 * 2 + 1; j++) {
+                        i.emplace_back(ACS_HLINE);
+                    }
+                    i.emplace_back(ACS_TTEE);
+                }
+            }
+        }
+        for (std::vector<chtype> &i: ans) {
+            if (i.back() == ACS_PLUS) {
+                i.pop_back();
+                i.emplace_back(ACS_RTEE);
+            } else if (i.back() == ACS_BTEE) {
+                i.pop_back();
+                i.emplace_back(ACS_LRCORNER);
+            } else if (i.back() == ACS_TTEE) {
+                i.pop_back();
+                i.emplace_back(ACS_URCORNER);
+            }
+        }
+        return ans;
+    }
 };
 
 Sudoku::Sudoku(int size) {
