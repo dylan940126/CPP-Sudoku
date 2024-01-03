@@ -16,9 +16,22 @@
 #include <ncursesw/ncurses.h>
 #include <fstream>
 #include <cassert>
-
+#include <algorithm>
+#include <codecvt>
+#include "gen_sudoku.cpp"
 
 typedef std::vector<std::vector<char>> Matrix;
+
+inline std::wstring to_wide_string(const std::string &input) {
+    std::wstring_convert<std::codecvt_utf8<wchar_t>> converter;
+    return converter.from_bytes(input);
+}
+
+inline std::string to_byte_string(const std::wstring &input) {
+    //std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> converter;
+    std::wstring_convert<std::codecvt_utf8<wchar_t>> converter;
+    return converter.to_bytes(input);
+}
 
 void init_ncurses() {
     setlocale(LC_ALL, "");
@@ -30,8 +43,9 @@ void init_ncurses() {
     keypad(stdscr, TRUE);
     curs_set(0);
     start_color();
-    init_pair(1, COLOR_BLUE, COLOR_BLACK);
-    init_pair(2, COLOR_BLACK, COLOR_BLUE);
+    init_pair(0, COLOR_WHITE, COLOR_BLACK);
+    init_pair(1, COLOR_BLUE, COLOR_YELLOW);
+    init_pair(2, COLOR_BLUE, COLOR_CYAN);
     init_pair(3, COLOR_GREEN, COLOR_BLACK);
     init_pair(4, COLOR_RED, COLOR_BLACK);
 }
@@ -43,13 +57,35 @@ void end_ncurses() {
     endwin();
 }
 
-void print_asciiart(WINDOW *win, int y, int x, const std::string &file) {
+bool print_asciiart(WINDOW *win, int y, int x, const std::string &file) {
+    if (x > getmaxx(win) || y > getmaxy(win))
+        return false;
+    bool flag = false;
     std::ifstream f(file);
     std::string line;
+    std::wstring line2;
+    int xx, yy = y;
     while (getline(f, line)) {
-        mvwprintw(win, y++, x, "%s", line.c_str());
+        line2 = to_wide_string(line);
+        if (x < 0) {
+            if (-x <= line2.size())
+                line2 = line2.substr(-x);
+            else {
+                continue;
+            }
+            xx = 0;
+        } else {
+            xx = x;
+        }
+        if (xx + line2.size() > getmaxx(win)) {
+            line2 = line2.substr(0, getmaxx(win) - xx);
+        }
+        if (line2.size() > 0)
+            flag = true;
+        mvwprintw(win, yy++, xx, "%s", to_byte_string(line2).c_str());
     }
     f.close();
+    return flag;
 }
 
 class Choose {
@@ -61,7 +97,7 @@ public:
         this->x = x;
         this->choices = choices;
         this->size = size;
-        this->choice = 0;
+        this->choice = 1;
     }
 
     std::string getSelected() const {
@@ -105,13 +141,17 @@ private:
 
 class Sudoku {
 public:
+    Sudoku() = default;
+
     Sudoku(int size);
 
-    void setMatrix(Matrix &matrix);
+    Sudoku(std::string filename);
 
-    void generate();
+    int get_size();
 
-    void sovle();
+    void generate_all();
+
+    void generate(string difficulty);
 
     void drawsudoku(WINDOW *win, int y, int center_x);
 
@@ -123,13 +163,13 @@ public:
 
     void cursor_right();
 
-    void toggle();
-
-    void input(char c);
+    void input(wchar_t c);
 
     void remove();
 
-    bool check_finish();
+    void hint();
+
+    bool finished();
 
 private:
     int size;
@@ -137,86 +177,7 @@ private:
     Matrix matrix;
     int cursor_x;
     int cursor_y;
-    bool input_mode;
-
-    bool generate(int row, int *candis);
-
-    class Solution {
-        int size;
-    public:
-        Solution(int size) {
-            this->size = size;
-        }
-
-        std::bitset<9> getPossibleStatus(int x, int y) {
-            return ~(rows[x] | cols[y] | cells[x / 3][y / 3]);
-        }
-
-        std::vector<int> getNext(std::vector<std::vector<char>> &board) {
-            std::vector<int> ret;
-            int minCnt = 10;
-            for (int i = 0; i < board.size(); i++) {
-                for (int j = 0; j < board[i].size(); j++) {
-                    if (board[i][j] != '.') continue;
-                    auto cur = getPossibleStatus(i, j);
-                    if (cur.count() >= minCnt) continue;
-                    ret = {i, j};
-                    minCnt = cur.count();
-                }
-            }
-            return ret;
-        }
-
-        void fillNum(int x, int y, int n, bool fillFlag) {
-            rows[x][n] = fillFlag;
-            cols[y][n] = fillFlag;
-            cells[x / 3][y / 3][n] = fillFlag;
-        }
-
-        bool dfs(std::vector<std::vector<char>> &board, int cnt) {
-            if (cnt == 0) return true;
-
-            auto next = getNext(board);
-            auto bits = getPossibleStatus(next[0], next[1]);
-            for (int n = 0; n < bits.size(); n++) {
-                if (!bits.test(n)) continue;
-                fillNum(next[0], next[1], n, true);
-                board[next[0]][next[1]] = n + '1';
-                if (dfs(board, cnt - 1)) return true;
-                board[next[0]][next[1]] = '.';
-                fillNum(next[0], next[1], n, false);
-            }
-            return false;
-        }
-
-        void solveSudoku(std::vector<std::vector<char>> &board) {
-            rows = std::vector<std::bitset<9 >>
-                    (9, std::bitset<9>());
-            cols = std::vector<std::bitset<9 >>
-                    (9, std::bitset<9>());
-            cells = std::vector<std::vector<std::bitset<9>>>(3, std::vector<std::bitset<9 >>
-                    (3, std::bitset<9>()));
-
-            int cnt = 0;
-            for (int i = 0; i < board.size(); i++) {
-                for (int j = 0; j < board[i].size(); j++) {
-                    cnt += (board[i][j] == '.');
-                    if (board[i][j] == '.') continue;
-                    int n = board[i][j] - '1';
-                    rows[i] |= (1 << n);
-                    cols[j] |= (1 << n);
-                    cells[i / 3][j / 3] |= (1 << n);
-                }
-            }
-            dfs(board, cnt);
-        }
-
-    private:
-        std::vector<std::bitset<9>> rows;
-        std::vector<std::bitset<9>> cols;
-        std::vector<std::vector<std::bitset<9>>>
-                cells;
-    };
+    vector<vector<int>> user_input;//0 for hide, 1 for show, 2 for input correct, 3 for input wrong
 };
 
 Sudoku::Sudoku(int size) {
@@ -226,140 +187,162 @@ Sudoku::Sudoku(int size) {
     this->matrix = Matrix(size, std::vector<char>(size, '.'));
     this->cursor_x = 2;
     this->cursor_y = 2;
-    this->input_mode = false;
 }
 
-bool Sudoku::generate(int row, int *candis) {
-    if (row == size)
-        return true;
-    for (int i = 0; i < size; i++) {
-        if (candis[i] == 0)
-            continue;
-        matrix[row][i] = candis[i] + '0';
-        candis[i] = 0;
-        if (generate(row + 1, candis))
-            return true;
-        candis[i] = matrix[row][i] - '0';
-        matrix[row][i] = ' ';
+Sudoku::Sudoku(std::string filename) {
+    ifstream fin;
+    fin.open(filename);
+    if (!fin) {
+        cout << "Error: file not found" << endl;
+        return;
     }
-    return false;
+    string s;
+    char c;
+    while (fin >> c)
+        s += c;
+    size = sqrt(s.size());
+    assert(size == 4 || size == 9 || size == 16);
+    this->size = size;
+    this->box_size = sqrt(size);
+    this->matrix = Matrix(size, std::vector<char>(size, '.'));
+    this->cursor_x = 2;
+    this->cursor_y = 2;
+    for (int i = 0; i < size; i++)
+        for (int j = 0; j < size; j++)
+            matrix[i][j] = s[i * size + j];
 }
 
 void Sudoku::drawsudoku(WINDOW *win, int y, int center_x) {
-    {
-        std::vector<std::wstring> ans;
-        int curs_y = -1, curs_x = -1;
-        for (int i = 0; i < box_size; i++) {
-            ans.emplace_back(1, L'┣');
-            for (int j = 0; j < box_size; j++)
-                ans.emplace_back(1, L'┃');
-        }
-        ans[0][0] = L'┏';
-        ans.emplace_back(1, L'┗');
-        for (int i = 0; i < box_size; i++) {
-            int pr_y = 0;
-            for (int ii = 0; ii < ans.size(); ii++) {
-                std::wstring &s = ans[ii];
-                if (s[0] == L'┣') {
-                    s.append(box_size * 2 + 1, L'━');
-                    s.push_back(L'╋');
-                } else if (s[0] == L'┃') {
-                    s.push_back(' ');
-                    for (int j = 0; j < box_size; j++) {
-                        int pr_x = i * box_size + j;
-                        if (matrix[pr_y][pr_x] != '.')
-                            s.push_back(matrix[pr_y][pr_x]);
-                        else
+    std::vector<std::wstring> ans;
+    int curs_y = -1, curs_x = -1;
+    for (int i = 0; i < box_size; i++) {
+        ans.emplace_back(1, L'┣');
+        for (int j = 0; j < box_size; j++)
+            ans.emplace_back(1, L'┃');
+    }
+    ans[0][0] = L'┏';
+    ans.emplace_back(1, L'┗');
+
+
+    for (int i = 0; i < box_size; i++) {
+        int pr_y = 0;
+        for (int ii = 0; ii < ans.size(); ii++) {
+            std::wstring &s = ans[ii];
+            if (s[0] == L'┣') {
+                s.append(box_size * 2 + 1, L'━');
+                s.push_back(L'╋');
+            } else if (s[0] == L'┃') {
+                s.push_back(' ');
+                for (int j = 0; j < box_size; j++) {
+                    int pr_x = i * box_size + j;
+                    switch (user_input[pr_y][pr_x]) {
+                        case -1:
                             s.push_back('_');
-                        if (pr_y == cursor_y && pr_x == cursor_x) {
-                            curs_y = ii;
-                            curs_x = s.size() - 1;
-                        }
-                        s.push_back(' ');
+                            break;
+                        case 0:
+                            s.push_back(matrix[pr_y][pr_x]);
+                            break;
+                        default:
+                            s.push_back(user_input[pr_y][pr_x]);
+                            break;
                     }
-                    pr_y++;
-                    s.push_back(L'┃');
-                } else if (s[0] == L'┗') {
-                    s.append(box_size * 2 + 1, L'━');
-                    s.push_back(L'┻');
-                } else if (s[0] == L'┏') {
-                    for (int j = 0; j < box_size * 2 + 1; j++) {
-                        s.push_back(L'━');
-                    }
-                    s.push_back(L'┳');
+                    s.push_back(' ');
                 }
+                pr_y++;
+                s.push_back(L'┃');
+            } else if (s[0] == L'┗') {
+                s.append(box_size * 2 + 1, L'━');
+                s.push_back(L'┻');
+            } else if (s[0] == L'┏') {
+                for (int j = 0; j < box_size * 2 + 1; j++) {
+                    s.push_back(L'━');
+                }
+                s.push_back(L'┳');
             }
         }
-        for (std::wstring &i: ans) {
-            if (i.back() == L'╋') {
-                i.pop_back();
-                i.push_back(L'┫');
-            } else if (i.back() == L'┻') {
-                i.pop_back();
-                i.push_back(L'┛');
-            } else if (i.back() == L'┳') {
-                i.pop_back();
-                i.push_back(L'┓');
-            }
+    }
+
+    for (std::wstring &i: ans) {
+        if (i.back() == L'╋') {
+            i.pop_back();
+            i.push_back(L'┫');
+        } else if (i.back() == L'┻') {
+            i.pop_back();
+            i.push_back(L'┛');
+        } else if (i.back() == L'┳') {
+            i.pop_back();
+            i.push_back(L'┓');
         }
-        for (int i = 0; i < ans.size(); i++) {
-            for (int j = 0; j < ans[i].size(); j++) {
-                if (i == curs_y && j == curs_x) {
-                    if (input_mode)
-                        wattron(win, COLOR_PAIR(2));
-                    else
-                        wattron(win, COLOR_PAIR(1));
+    }
+    int pr_y = 0, pr_x = 0, cursor_num = -1;
+    if (user_input[cursor_y][cursor_x] == 0)
+        cursor_num = matrix[cursor_y][cursor_x];
+    else
+        cursor_num = user_input[cursor_y][cursor_x];
+    for (int i = 0; i < ans.size(); i++) {
+        for (int j = 0; j < ans[i].size(); j++) {
+            if (ans[i][j] >= 'A' && ans[i][j] <= 'G' || ans[i][j] >= '0' && ans[i][j] <= '9' || ans[i][j] == '_') {
+                if (pr_x == size)
+                    pr_x = 0, pr_y++;
+                switch (user_input[pr_y][pr_x]) {
+                    case -1:
+                        break;
+                    case 0:
+                        wattron(win, COLOR_PAIR(0));
+                        break;
+                    default:
+                        if (user_input[pr_y][pr_x] == matrix[pr_y][pr_x]) {
+                            wattron(win, COLOR_PAIR(3));
+                        } else
+                            wattron(win, COLOR_PAIR(4));
+                        break;
                 }
-                mvaddwstr(i + y, j + center_x - ans[i].size() / 2, &ans[i][j]);
-                if (i == curs_y && j == curs_x) {
-                    if (input_mode)
-                        wattroff(win, COLOR_PAIR(2));
-                    else
-                        wattroff(win, COLOR_PAIR(1));
-                }
+                if (ans[i][j] == cursor_num)
+                    wattron(win, COLOR_PAIR(2));
+                if (pr_x == cursor_x && pr_y == cursor_y)
+                    wattron(win, COLOR_PAIR(1));
+                pr_x++;
             }
+            mvwaddwstr(win, i + y, j + center_x - ans[i].size() / 2, &ans[i][j]);
+            wattroff(win, COLOR_PAIR(0));
+            wattroff(win, COLOR_PAIR(1));
+            wattroff(win, COLOR_PAIR(2));
+            wattroff(win, COLOR_PAIR(3));
+            wattroff(win, COLOR_PAIR(4));
         }
     }
 }
 
-void Sudoku::setMatrix(Matrix &matrix) {
-    this->matrix = matrix;
-}
-
 void Sudoku::cursor_up() {
-    if (!input_mode && cursor_y > 0)
+    if (cursor_y > 0)
         cursor_y--;
 }
 
 void Sudoku::cursor_down() {
-    if (!input_mode && cursor_y < size - 1)
+    if (cursor_y < size - 1)
         cursor_y++;
 }
 
 void Sudoku::cursor_left() {
-    if (!input_mode && cursor_x > 0)
+    if (cursor_x > 0)
         cursor_x--;
 }
 
 void Sudoku::cursor_right() {
-    if (!input_mode && cursor_x < size - 1)
+    if (cursor_x < size - 1)
         cursor_x++;
 }
 
-void Sudoku::toggle() {
-    input_mode = !input_mode;
-}
-
-bool Sudoku::check_finish() {
+bool Sudoku::finished() {
     for (int i = 0; i < size; i++)
         for (int j = 0; j < size; j++) {
-            if (matrix[i][j] == '.')
+            if (user_input[i][j] != 0 && user_input[i][j] != matrix[i][j])
                 return false;
         }
     return true;
 }
 
-void Sudoku::input(char c) {
+void Sudoku::input(wchar_t c) {
     if (size <= 9) {
         if (!(c >= '1' && c <= '9')) {
             return;
@@ -371,9 +354,56 @@ void Sudoku::input(char c) {
     }
     if (c >= 'a' && c <= 'g')
         c = c - 'a' + 'A';
-    if (input_mode && matrix[cursor_y][cursor_x] == '.') {
-        matrix[cursor_y][cursor_x] = (char)c;
+    if (!(user_input[cursor_y][cursor_x] == 0 || user_input[cursor_y][cursor_x] == matrix[cursor_y][cursor_x])) {
+        user_input[cursor_y][cursor_x] = c;
     }
+}
+
+void Sudoku::generate_all() {
+    srand(time(NULL));
+    int sudoku[MaxSize][MaxSize] = {0};
+    create_sudoku(sudoku, size);
+    for (int i = 0; i < size; i++)
+        for (int j = 0; j < size; j++) {
+            if (sudoku[i][j] > 9)
+                matrix[i][j] = 'A' + sudoku[i][j] - 10;
+            else
+                matrix[i][j] = '0' + sudoku[i][j];
+        }
+}
+
+void Sudoku::generate(string difficulty) {
+    double rate_of_blank;
+    if (difficulty == "Easy")
+        rate_of_blank = 0.5;
+    else if (difficulty == "Medium")
+        rate_of_blank = 0.6;
+    else if (difficulty == "Hard")
+        rate_of_blank = 0.75;
+    auto tmp = generate_blank(size, rate_of_blank);
+    user_input = vector<vector<int>>(size, vector<int>(size, 0));
+    for (int i = 0; i < size; i++)
+        for (int j = 0; j < size; j++) {
+            if (tmp[i][j] == 0)
+                user_input[i][j] = -1;
+            else
+                user_input[i][j] = 0;
+        }
+}
+
+void Sudoku::remove() {
+    if (user_input[cursor_y][cursor_x] > 0 && user_input[cursor_y][cursor_x] != matrix[cursor_y][cursor_x])
+        user_input[cursor_y][cursor_x] = -1;
+
+}
+
+void Sudoku::hint() {
+    if (user_input[cursor_y][cursor_x] != 0)
+        user_input[cursor_y][cursor_x] = matrix[cursor_y][cursor_x];
+}
+
+int Sudoku::get_size() {
+    return size;
 }
 
 #endif //NYCU_SUDOKU_H
