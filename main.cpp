@@ -10,7 +10,6 @@ int main() {
     init_ncurses();
     bool exit = false;
     while (true) {
-        clear();
 // user input page
         // print ascii art
         print_asciiart(stdscr, 2, (COLS - 51) / 2, "sudoku.txt");
@@ -56,10 +55,10 @@ int main() {
                 case KEY_LEFT:
                     choosingsize = true;
                     break;
-                case '\n':
+                case L'\n':
                     ok = true;
                     break;
-                case 27:
+                case L'q':
                     exit = true;
                     ok = true;
                     break;
@@ -83,10 +82,11 @@ int main() {
         for (int i = 0; i < size; i++)
             for (int j = 0; j < size; j++)
                 matrix[i][j] = '0' + rand() % 10;
-        su.setMatrix(matrix);
+//        su.setMatrix(matrix);
         ok = false;
         while (!ok) {
-            switch (getch()) {
+            wchar_t c = getch();
+            switch (c) {
                 case KEY_UP:
                     su.cursor_up();
                     break;
@@ -99,20 +99,20 @@ int main() {
                 case KEY_LEFT:
                     su.cursor_left();
                     break;
-                case '\n':
+                case L'\n':
                     su.toggle();
                     break;
-                case 27:
+                case L'q':
                     ok = true;
                     break;
                 default:
-                    break;
+                    if (c != ERR)
+                        su.input(c);
             }
             su.drawsudoku(stdscr, 10, COLS / 2);
             refresh();
         }
     }
-    curs_set(1);
-    endwin();
+    end_ncurses();
     return 0;
 }

@@ -36,6 +36,13 @@ void init_ncurses() {
     init_pair(4, COLOR_RED, COLOR_BLACK);
 }
 
+void end_ncurses() {
+    clear();
+    refresh();
+    curs_set(1);
+    endwin();
+}
+
 void print_asciiart(WINDOW *win, int y, int x, const std::string &file) {
     std::ifstream f(file);
     std::string line;
@@ -315,22 +322,22 @@ void Sudoku::setMatrix(Matrix &matrix) {
 }
 
 void Sudoku::cursor_up() {
-    if (cursor_y > 0)
+    if (!input_mode && cursor_y > 0)
         cursor_y--;
 }
 
 void Sudoku::cursor_down() {
-    if (cursor_y < size - 1)
+    if (!input_mode && cursor_y < size - 1)
         cursor_y++;
 }
 
 void Sudoku::cursor_left() {
-    if (cursor_x > 0)
+    if (!input_mode && cursor_x > 0)
         cursor_x--;
 }
 
 void Sudoku::cursor_right() {
-    if (cursor_x < size - 1)
+    if (!input_mode && cursor_x < size - 1)
         cursor_x++;
 }
 
@@ -345,6 +352,23 @@ bool Sudoku::check_finish() {
                 return false;
         }
     return true;
+}
+
+void Sudoku::input(char c) {
+    if (size <= 9) {
+        if (!(c >= '1' && c <= '9')) {
+            return;
+        }
+    } else {
+        if (!((c >= '1' && c <= '9') || (c >= 'A' && c <= 'G') || (c >= 'a' && c <= 'g'))) {
+            return;
+        }
+    }
+    if (c >= 'a' && c <= 'g')
+        c = c - 'a' + 'A';
+    if (input_mode && matrix[cursor_y][cursor_x] == '.') {
+        matrix[cursor_y][cursor_x] = (char)c;
+    }
 }
 
 #endif //NYCU_SUDOKU_H
