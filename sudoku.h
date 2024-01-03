@@ -17,19 +17,23 @@
 #include <fstream>
 #include <cassert>
 
+
+typedef std::vector<std::vector<char>> Matrix;
+
 void init_ncurses() {
     setlocale(LC_ALL, "");
-    system("sleep 0.01");
+    system("sleep 0.1");
     initscr();
     cbreak();
     noecho();
-    nodelay(stdscr, TRUE);
+    timeout(50);
     keypad(stdscr, TRUE);
     curs_set(0);
     start_color();
-//    init_pair(1, COLOR_BLUE, COLOR_BLACK);
-//    init_pair(2, COLOR_GREEN, COLOR_BLACK);
-//    init_pair(3, COLOR_RED, COLOR_BLACK);
+    init_pair(1, COLOR_BLUE, COLOR_BLACK);
+    init_pair(2, COLOR_BLACK, COLOR_BLUE);
+    init_pair(3, COLOR_GREEN, COLOR_BLACK);
+    init_pair(4, COLOR_RED, COLOR_BLACK);
 }
 
 void print_asciiart(WINDOW *win, int y, int x, const std::string &file) {
@@ -93,11 +97,40 @@ private:
 };
 
 class Sudoku {
+public:
+    Sudoku(int size);
+
+    void setMatrix(Matrix &matrix);
+
+    void generate();
+
+    void sovle();
+
+    void drawsudoku(WINDOW *win, int y, int center_x);
+
+    void cursor_up();
+
+    void cursor_down();
+
+    void cursor_left();
+
+    void cursor_right();
+
+    void toggle();
+
+    void input(char c);
+
+    void remove();
+
+    bool check_finish();
+
 private:
-    typedef std::vector<std::vector<char>> Matrix;
     int size;
     int box_size;
     Matrix matrix;
+    int cursor_x;
+    int cursor_y;
+    bool input_mode;
 
     bool generate(int row, int *candis);
 
@@ -172,74 +205,16 @@ private:
         std::vector<std::vector<std::bitset<9>>>
                 cells;
     };
-
-public:
-
-    Sudoku(int size);
-
-    void print();
-
-    void generate();
-
-    void sovle();
-
-    static std::vector<std::vector<chtype>> printsudoku(int size) {
-        std::vector<std::vector<chtype>> ans;
-        int size2 = sqrt(size);
-        for (int i = 0; i < size2; i++) {
-            ans.emplace_back(1, ACS_LTEE);
-            for (int j = 0; j < size2; j++) {
-                ans.emplace_back(1, ACS_VLINE);
-            }
-        }
-        ans[0][0] = ACS_ULCORNER;
-        ans.emplace_back(1, ACS_LLCORNER);
-        for (int i = 0; i < size2; i++) {
-            for (std::vector<chtype> &i: ans) {
-                if (i[0] == ACS_LTEE) {
-                    for (int j = 0; j < size2 * 2 + 1; j++) {
-                        i.emplace_back(ACS_HLINE);
-                    }
-                    i.emplace_back(ACS_PLUS);
-                } else if (i[0] == ACS_VLINE) {
-                    for (int j = 0; j < size2 * 2 + 1; j++) {
-                        i.emplace_back(' ');
-                    }
-                    i.emplace_back(ACS_VLINE);
-                } else if (i[0] == ACS_LLCORNER) {
-                    for (int j = 0; j < size2 * 2 + 1; j++) {
-                        i.emplace_back(ACS_HLINE);
-                    }
-                    i.emplace_back(ACS_BTEE);
-                } else if (i[0] == ACS_ULCORNER) {
-                    for (int j = 0; j < size2 * 2 + 1; j++) {
-                        i.emplace_back(ACS_HLINE);
-                    }
-                    i.emplace_back(ACS_TTEE);
-                }
-            }
-        }
-        for (std::vector<chtype> &i: ans) {
-            if (i.back() == ACS_PLUS) {
-                i.pop_back();
-                i.emplace_back(ACS_RTEE);
-            } else if (i.back() == ACS_BTEE) {
-                i.pop_back();
-                i.emplace_back(ACS_LRCORNER);
-            } else if (i.back() == ACS_TTEE) {
-                i.pop_back();
-                i.emplace_back(ACS_URCORNER);
-            }
-        }
-        return ans;
-    }
 };
 
 Sudoku::Sudoku(int size) {
     assert(size == 4 || size == 9 || size == 16);
     this->size = size;
     this->box_size = sqrt(size);
-    this->matrix = Matrix(size, std::vector<char>(size, ' '));
+    this->matrix = Matrix(size, std::vector<char>(size, '.'));
+    this->cursor_x = 2;
+    this->cursor_y = 2;
+    this->input_mode = false;
 }
 
 bool Sudoku::generate(int row, int *candis) {
@@ -256,6 +231,120 @@ bool Sudoku::generate(int row, int *candis) {
         matrix[row][i] = ' ';
     }
     return false;
+}
+
+void Sudoku::drawsudoku(WINDOW *win, int y, int center_x) {
+    {
+        std::vector<std::wstring> ans;
+        int curs_y = -1, curs_x = -1;
+        for (int i = 0; i < box_size; i++) {
+            ans.emplace_back(1, L'┣');
+            for (int j = 0; j < box_size; j++)
+                ans.emplace_back(1, L'┃');
+        }
+        ans[0][0] = L'┏';
+        ans.emplace_back(1, L'┗');
+        for (int i = 0; i < box_size; i++) {
+            int pr_y = 0;
+            for (int ii = 0; ii < ans.size(); ii++) {
+                std::wstring &s = ans[ii];
+                if (s[0] == L'┣') {
+                    s.append(box_size * 2 + 1, L'━');
+                    s.push_back(L'╋');
+                } else if (s[0] == L'┃') {
+                    s.push_back(' ');
+                    for (int j = 0; j < box_size; j++) {
+                        int pr_x = i * box_size + j;
+                        if (matrix[pr_y][pr_x] != '.')
+                            s.push_back(matrix[pr_y][pr_x]);
+                        else
+                            s.push_back('_');
+                        if (pr_y == cursor_y && pr_x == cursor_x) {
+                            curs_y = ii;
+                            curs_x = s.size() - 1;
+                        }
+                        s.push_back(' ');
+                    }
+                    pr_y++;
+                    s.push_back(L'┃');
+                } else if (s[0] == L'┗') {
+                    s.append(box_size * 2 + 1, L'━');
+                    s.push_back(L'┻');
+                } else if (s[0] == L'┏') {
+                    for (int j = 0; j < box_size * 2 + 1; j++) {
+                        s.push_back(L'━');
+                    }
+                    s.push_back(L'┳');
+                }
+            }
+        }
+        for (std::wstring &i: ans) {
+            if (i.back() == L'╋') {
+                i.pop_back();
+                i.push_back(L'┫');
+            } else if (i.back() == L'┻') {
+                i.pop_back();
+                i.push_back(L'┛');
+            } else if (i.back() == L'┳') {
+                i.pop_back();
+                i.push_back(L'┓');
+            }
+        }
+        for (int i = 0; i < ans.size(); i++) {
+            for (int j = 0; j < ans[i].size(); j++) {
+                if (i == curs_y && j == curs_x) {
+                    if (input_mode)
+                        wattron(win, COLOR_PAIR(2));
+                    else
+                        wattron(win, COLOR_PAIR(1));
+                }
+                mvaddwstr(i + y, j + center_x - ans[i].size() / 2, &ans[i][j]);
+                if (i == curs_y && j == curs_x) {
+                    if (input_mode)
+                        wattroff(win, COLOR_PAIR(2));
+                    else
+                        wattroff(win, COLOR_PAIR(1));
+                }
+            }
+        }
+    }
+}
+
+void Sudoku::setMatrix(Matrix &matrix) {
+    this->matrix = matrix;
+}
+
+void Sudoku::cursor_up() {
+    if (cursor_y > 0)
+        cursor_y--;
+}
+
+void Sudoku::cursor_down() {
+    if (cursor_y < size - 1)
+        cursor_y++;
+}
+
+void Sudoku::cursor_left() {
+    if (cursor_x > 0)
+        cursor_x--;
+}
+
+void Sudoku::cursor_right() {
+    if (cursor_x < size - 1)
+        cursor_x++;
+}
+
+void Sudoku::toggle() {
+    input_mode = !input_mode;
+}
+
+bool Sudoku::check_finish() {
+    for (int i = 0; i < size; i++)
+        for (int j = 0; j < size; j++) {
+            if (matrix[i][j] == '.')
+                return false;
+        }
+    return true;
 }
 
 #endif //NYCU_SUDOKU_H
