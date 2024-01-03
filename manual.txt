@@ -1,0 +1,6 @@
+            ↑
+control : ← ↓ →
+input   : 1-9 (A-G)
+hint    :   h
+quit    :   q
+remove  : enter
