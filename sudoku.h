@@ -222,7 +222,7 @@ public:
 
     void cursor_right();
 
-    void input(wchar_t c);
+    bool input(wchar_t c);
 
     void remove();
 
@@ -398,20 +398,23 @@ bool Sudoku::finished() {
     return true;
 }
 
-void Sudoku::input(wchar_t c) {
+bool Sudoku::input(wchar_t c) {
     if (size <= 9) {
         if (!(c >= '1' && c <= '9')) {
-            return;
+            return false;
         }
     } else {
         if (!((c >= '1' && c <= '9') || (c >= 'A' && c <= 'G') || (c >= 'a' && c <= 'g'))) {
-            return;
+            return false;
         }
     }
     if (c >= 'a' && c <= 'g')
         c = c - 'a' + 'A';
-    if (!is_correct())
+    if (!is_correct() && user_input[cursor_y][cursor_x] != c) {
         user_input[cursor_y][cursor_x] = c;
+        return true;
+    }
+    return false;
 }
 
 void Sudoku::generate_all() {

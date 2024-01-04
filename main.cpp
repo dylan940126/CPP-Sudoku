@@ -146,12 +146,15 @@ int main() {
                         if (su.is_correct())
                             break;
                         su.hint();
-                        last_timer -= 20;
+                        timer += 20;
                         ok = su.finished();
                         break;
                     default:
-                        su.input(c);
-                        ok = su.finished();
+                        if (su.input(c)) {
+                            if (!su.is_correct())
+                                timer += 5;
+                            ok = su.finished();
+                        }
                         break;
                 }
             }
