@@ -11,28 +11,14 @@
 #define NYCU_SUDOKU_H
 
 #include <vector>
-#include <cmath>
-#include <bitset>
 #include <ncurses.h>
 #include <fstream>
 #include <cassert>
-#include <algorithm>
 #include <codecvt>
 #include <chrono>
 #include "gen_sudoku.cpp"
 
 typedef std::vector<std::vector<char>> Matrix;
-
-inline std::wstring to_wide_string(const std::string &input) {
-    std::wstring_convert<std::codecvt_utf8<wchar_t>> converter;
-    return converter.from_bytes(input);
-}
-
-inline std::string to_byte_string(const std::wstring &input) {
-    //std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> converter;
-    std::wstring_convert<std::codecvt_utf8<wchar_t>> converter;
-    return converter.to_bytes(input);
-}
 
 void init_ncurses() {
     setlocale(LC_ALL, "");
@@ -66,30 +52,31 @@ bool draw_asciiart(WINDOW *win, int y, int x, const std::string &file) {
     if (x > getmaxx(win) || y > getmaxy(win))
         return false;
     bool flag = false;
-    std::ifstream f(file);
-    std::string line;
-    std::wstring line2;
+    std::wifstream f(file, std::ios::binary);
+    if (!f)
+        return false;
+    f.imbue(std::locale(f.getloc(), new std::codecvt_utf8<wchar_t>));
+    std::wstring line;
     int xx;
     while (y < 0)
         y++, getline(f, line);
     while (y <= getmaxy(win) && getline(f, line)) {
-        line2 = to_wide_string(line);
         if (x < 0) {
-            if (-x > line2.size()) {
+            if (-x > line.size()) {
                 y++;
                 continue;
             }
-            line2 = line2.substr(-x);
+            line = line.substr(-x);
             xx = 0;
         } else {
             xx = x;
         }
-        if (xx + line2.size() > getmaxx(win)) {
-            line2 = line2.substr(0, getmaxx(win) - xx);
+        if (xx + line.size() > getmaxx(win)) {
+            line = line.substr(0, getmaxx(win) - xx);
         }
-        if (line2.size() > 0)
+        if (line.size() > 0)
             flag = true;
-        mvwprintw(win, y++, xx, "%s", to_byte_string(line2).c_str());
+        mvwprintw(win, y++, xx, "%ls", line.c_str());
     }
     f.close();
     return flag;
@@ -222,7 +209,7 @@ public:
 
     void cursor_right();
 
-    void input(wchar_t c);
+    bool input(wchar_t c);
 
     void remove();
 
@@ -330,6 +317,8 @@ void Sudoku::drawsudoku(WINDOW *win, int y, int center_x) {
             i.push_back(L'┓');
         }
     }
+
+
     int pr_y = 0, pr_x = 0, cursor_num = -1;
     if (user_input[cursor_y][cursor_x] == 0)
         cursor_num = matrix[cursor_y][cursor_x];
@@ -353,7 +342,7 @@ void Sudoku::drawsudoku(WINDOW *win, int y, int center_x) {
                             wattron(win, COLOR_PAIR(4));
                         break;
                 }
-                if (ans[i][j] == cursor_num)
+                if (cursor_num != -1 && ans[i][j] == cursor_num)
                     wattron(win, COLOR_PAIR(2));
                 if (pr_x == cursor_x && pr_y == cursor_y)
                     wattron(win, COLOR_PAIR(1));
@@ -398,20 +387,23 @@ bool Sudoku::finished() {
     return true;
 }
 
-void Sudoku::input(wchar_t c) {
+bool Sudoku::input(wchar_t c) {
     if (size <= 9) {
         if (!(c >= '1' && c <= '9')) {
-            return;
+            return false;
         }
     } else {
         if (!((c >= '1' && c <= '9') || (c >= 'A' && c <= 'G') || (c >= 'a' && c <= 'g'))) {
-            return;
+            return false;
         }
     }
     if (c >= 'a' && c <= 'g')
         c = c - 'a' + 'A';
-    if (!is_correct())
+    if (!is_correct() && user_input[cursor_y][cursor_x] != c) {
         user_input[cursor_y][cursor_x] = c;
+        return true;
+    }
+    return false;
 }
 
 void Sudoku::generate_all() {
