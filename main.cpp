@@ -20,7 +20,7 @@ int main() {
         while (!ok) {
             // print ascii art
             clear();
-            int i = (long long) (getTime() * 2) % 6;
+            int i = (uint64_t) (getTime() * 2) % 6;
             int x = (COLS - 51) / 2;
             draw_asciiart(stdscr, 2 - (i == 0), x, "asciiarts/sudoku-s.txt");
             draw_asciiart(stdscr, 2 - (i == 1), x += 8, "asciiarts/sudoku-u.txt");
@@ -101,7 +101,7 @@ int main() {
 
             // print ascii art
             clear();
-            int i = (int) (timer * 2) % 6;
+            int i = (uint64_t) (getTime() * 2) % 6;
             int x = (COLS - 51) / 2;
             draw_asciiart(stdscr, 2 - (i == 0), x, "asciiarts/sudoku-s.txt");
             draw_asciiart(stdscr, 2 - (i == 1), x += 8, "asciiarts/sudoku-u.txt");
