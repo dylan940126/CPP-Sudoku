@@ -1,0 +1,6 @@
+            i
+control : j k l
+input   : 1-9 (A-G)
+hint    : h(20s)
+quit    : q
+remove  : enter

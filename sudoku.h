@@ -13,12 +13,12 @@
 #include <vector>
 #include <cmath>
 #include <bitset>
-#include <ncursesw/ncurses.h>
+#include <ncurses.h>
 #include <fstream>
 #include <cassert>
 #include <algorithm>
 #include <codecvt>
-#include <ctime>
+#include <chrono>
 #include "gen_sudoku.cpp"
 
 typedef std::vector<std::vector<char>> Matrix;
@@ -40,13 +40,13 @@ void init_ncurses() {
     initscr();
     cbreak();
     noecho();
-    timeout(20);
+    timeout(50);
     keypad(stdscr, TRUE);
     curs_set(0);
     start_color();
     init_pair(0, COLOR_WHITE, COLOR_BLACK);
-    init_pair(1, COLOR_BLUE, COLOR_YELLOW);
-    init_pair(2, COLOR_BLUE, COLOR_CYAN);
+    init_pair(1, COLOR_BLUE, COLOR_CYAN);
+    init_pair(2, COLOR_BLUE, COLOR_YELLOW);
     init_pair(3, COLOR_GREEN, COLOR_BLACK);
     init_pair(4, COLOR_RED, COLOR_BLACK);
 }
@@ -56,6 +56,10 @@ void end_ncurses() {
     refresh();
     curs_set(1);
     endwin();
+}
+
+double getTime() {
+    return chrono::duration_cast<chrono::milliseconds>(chrono::system_clock::now().time_since_epoch()).count() / 1000.0;
 }
 
 bool draw_asciiart(WINDOW *win, int y, int x, const std::string &file) {
@@ -89,6 +93,56 @@ bool draw_asciiart(WINDOW *win, int y, int x, const std::string &file) {
     }
     f.close();
     return flag;
+}
+
+bool ask_if_exit(WINDOW *win, int edge) {
+    //ask if the user want to ask_if_exit
+    box(win, 0, 0);
+    mvwprintw(win, edge, (getmaxx(win) - 6) / 2, "PAUSED");
+    mvwprintw(win, edge + 2, (getmaxx(win) - 21) / 2, "Are you sure to QUIT?");
+    bool exit = false;
+    while (true) {
+        int c = getch();
+        if (c == KEY_RIGHT || c == 'l')
+            exit = false;
+        else if (c == KEY_LEFT || c == 'j')
+            exit = true;
+        else if (c == '\n')
+            break;
+        else if (c == 'q') {
+            exit = false;
+            break;
+        }
+        if (exit) {
+            wattron(win, A_REVERSE);
+            mvwprintw(win, getmaxy(win) - edge - 1, 4 * edge, "YES");
+            wattroff(win, A_REVERSE);
+            mvwprintw(win, getmaxy(win) - edge - 1, getmaxx(win) - 4 * edge - 3, "NO");
+        } else {
+            mvwprintw(win, getmaxy(win) - edge - 1, 4 * edge, "YES");
+            wattron(win, A_REVERSE);
+            mvwprintw(win, getmaxy(win) - edge - 1, getmaxx(win) - 4 * edge - 3, "NO");
+            wattroff(win, A_REVERSE);
+        }
+        wrefresh(win);
+    }
+    wclear(win);
+    wrefresh(win);
+    return exit;
+}
+
+wchar_t cvt2pad(wchar_t c) {
+    switch (c) {
+        case 'i':
+            return KEY_UP;
+        case 'j':
+            return KEY_LEFT;
+        case 'k':
+            return KEY_UP;
+        case 'l':
+            return KEY_RIGHT;
+    }
+    return c;
 }
 
 class Choose {
@@ -148,7 +202,9 @@ public:
 
     Sudoku(int size);
 
-    Sudoku(std::string filename);
+    Sudoku(const std::string &filename);
+
+    void init(int size);
 
     int get_size();
 
@@ -172,6 +228,8 @@ public:
 
     void hint();
 
+    bool is_correct();
+
     bool finished();
 
 private:
@@ -184,15 +242,11 @@ private:
 };
 
 Sudoku::Sudoku(int size) {
-    assert(size == 4 || size == 9 || size == 16);
-    this->size = size;
-    this->box_size = sqrt(size);
-    this->matrix = Matrix(size, std::vector<char>(size, '.'));
-    this->cursor_x = 2;
-    this->cursor_y = 2;
+    init(size);
+    generate_all();
 }
 
-Sudoku::Sudoku(std::string filename) {
+Sudoku::Sudoku(const std::string &filename) {
     ifstream fin;
     fin.open(filename);
     if (!fin) {
@@ -203,13 +257,8 @@ Sudoku::Sudoku(std::string filename) {
     char c;
     while (fin >> c)
         s += c;
-    size = sqrt(s.size());
-    assert(size == 4 || size == 9 || size == 16);
-    this->size = size;
-    this->box_size = sqrt(size);
-    this->matrix = Matrix(size, std::vector<char>(size, '.'));
-    this->cursor_x = 2;
-    this->cursor_y = 2;
+    size = (int) sqrt(s.size());
+    init(size);
     for (int i = 0; i < size; i++)
         for (int j = 0; j < size; j++)
             matrix[i][j] = s[i * size + j];
@@ -250,6 +299,10 @@ void Sudoku::drawsudoku(WINDOW *win, int y, int center_x) {
                             break;
                     }
                     s.push_back(' ');
+                    if (pr_x == cursor_x && pr_y == cursor_y) {
+                        curs_y = pr_y;
+                        curs_x = pr_x;
+                    }
                 }
                 pr_y++;
                 s.push_back(L'┃');
@@ -357,9 +410,8 @@ void Sudoku::input(wchar_t c) {
     }
     if (c >= 'a' && c <= 'g')
         c = c - 'a' + 'A';
-    if (!(user_input[cursor_y][cursor_x] == 0 || user_input[cursor_y][cursor_x] == matrix[cursor_y][cursor_x])) {
+    if (!is_correct())
         user_input[cursor_y][cursor_x] = c;
-    }
 }
 
 void Sudoku::generate_all() {
@@ -395,18 +447,31 @@ void Sudoku::generate(string difficulty) {
 }
 
 void Sudoku::remove() {
-    if (user_input[cursor_y][cursor_x] > 0 && user_input[cursor_y][cursor_x] != matrix[cursor_y][cursor_x])
+    if (!is_correct())
         user_input[cursor_y][cursor_x] = -1;
-
 }
 
 void Sudoku::hint() {
-    if (user_input[cursor_y][cursor_x] != 0)
+    if (!is_correct())
         user_input[cursor_y][cursor_x] = matrix[cursor_y][cursor_x];
 }
 
 int Sudoku::get_size() {
     return size;
+}
+
+void Sudoku::init(int size) {
+    assert(size == 4 || size == 9 || size == 16);
+    this->size = size;
+    this->box_size = (int) sqrt(size);
+    this->matrix = Matrix(size, std::vector<char>(size, '.'));
+    this->cursor_x = 2;
+    this->cursor_y = 2;
+}
+
+bool Sudoku::is_correct() {
+    return user_input[cursor_y][cursor_x] == 0 ||
+           user_input[cursor_y][cursor_x] == matrix[cursor_y][cursor_x];
 }
 
 #endif //NYCU_SUDOKU_H

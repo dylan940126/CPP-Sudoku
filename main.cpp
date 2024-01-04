@@ -1,5 +1,4 @@
 // this is a sudoku game
-#include <csignal>
 #include "sudoku.h"
 
 using namespace std;
@@ -10,13 +9,8 @@ int main() {
     bool exit = false;
     while (true) {
 // user input page
-        // print ascii art
-        draw_asciiart(stdscr, 2, (COLS - 51) / 2, "sudoku-text.txt");
-        // print instructions
-        mvprintw(22, (COLS - 35) / 2, "Press Enter to Restart or q to Quit");
-        refresh();
         // wait for enter
-        string size_choices[] = {"4x4", "9x9", "16x16", "Custom"};
+        string size_choices[] = {"4x4", "9x9", "16x16", "From File"};
         string difficulty_choices[] = {"Easy", "Medium", "Hard"};
         WINDOW *w_size = newwin(9, 26, 10, COLS / 2 - 26);
         WINDOW *w_difficulty = newwin(9, 26, 10, COLS / 2);
@@ -24,6 +18,19 @@ int main() {
         Choose sudoku_difficulty(w_difficulty, difficulty_choices, 3, "Choose Difficulty", 3, 4);
         bool ok = false, choosingsize = true;
         while (!ok) {
+            // print ascii art
+            clear();
+            int i = (long long) (getTime() * 2) % 6;
+            int x = (COLS - 51) / 2;
+            draw_asciiart(stdscr, 2 - (i == 0), x, "asciiarts/sudoku-s.txt");
+            draw_asciiart(stdscr, 2 - (i == 1), x += 8, "asciiarts/sudoku-u.txt");
+            draw_asciiart(stdscr, 2 - (i == 2), x += 9, "asciiarts/sudoku-d.txt");
+            draw_asciiart(stdscr, 2 - (i == 3), x += 8, "asciiarts/sudoku-o.txt");
+            draw_asciiart(stdscr, 2 - (i == 4), x += 9, "asciiarts/sudoku-k.txt");
+            draw_asciiart(stdscr, 2 - (i == 5), x += 8, "asciiarts/sudoku-u.txt");
+            // print instructions
+            mvprintw(22, (COLS - 35) / 2, "Press Enter to Restart or q to Quit");
+
             if (choosingsize) {
                 box(w_size, 0, 0);
                 wborder(w_difficulty, ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ');
@@ -33,9 +40,10 @@ int main() {
             }
             sudoku_size.draw();
             sudoku_difficulty.draw();
+            refresh();
             wrefresh(w_size);
             wrefresh(w_difficulty);
-            switch (getch()) {
+            switch (cvt2pad(getch())) {
                 case KEY_UP:
                     if (choosingsize)
                         sudoku_size.up();
@@ -54,10 +62,10 @@ int main() {
                 case KEY_LEFT:
                     choosingsize = true;
                     break;
-                case L'\n':
+                case '\n':
                     ok = true;
                     break;
-                case L'q':
+                case 'q':
                     exit = true;
                     ok = true;
                     break;
@@ -73,32 +81,45 @@ int main() {
             break;
 
 // sudoku game page
-        // print ascii art
-        draw_asciiart(stdscr, 2, (COLS - 51) / 2, "sudoku-text.txt");
-        refresh();
         // print sudoku
         Sudoku su;
-        if (sudoku_size.getSelected() == "Custom")
+        if (sudoku_size.getSelected() == "From File")
             su = Sudoku("sudoku.txt");
         else {
             su = Sudoku(sudoku_size.getSelected() == "9x9" ? 9 : sudoku_size.getSelected() == "16x16" ? 16 : 4);
             su.generate_all();
         }
         su.generate(sudoku_difficulty.getSelected());
-        // print instructions
-        draw_asciiart(stdscr, 8 + su.get_size() / 2, (COLS - 80) / 2, "manual.txt");
         ok = false;
-        time_t last_timer = time(nullptr);
-        double timer = 0;
+        double last_timer = getTime(), timer = 0;
+        //for exit window
+        WINDOW *w_exit;
         while (!ok) {
-            // timer
-            timer += difftime(time(nullptr), last_timer);
-            last_timer = time(nullptr);
+            // timer and print
+            timer += getTime() - last_timer;
+            last_timer = getTime();
+
+            // print ascii art
+            clear();
+            int i = (int) (timer * 2) % 6;
+            int x = (COLS - 51) / 2;
+            draw_asciiart(stdscr, 2 - (i == 0), x, "asciiarts/sudoku-s.txt");
+            draw_asciiart(stdscr, 2 - (i == 1), x += 8, "asciiarts/sudoku-u.txt");
+            draw_asciiart(stdscr, 2 - (i == 2), x += 9, "asciiarts/sudoku-d.txt");
+            draw_asciiart(stdscr, 2 - (i == 3), x += 8, "asciiarts/sudoku-o.txt");
+            draw_asciiart(stdscr, 2 - (i == 4), x += 9, "asciiarts/sudoku-k.txt");
+            draw_asciiart(stdscr, 2 - (i == 5), x += 8, "asciiarts/sudoku-u.txt");
+            // print instructions
+            draw_asciiart(stdscr, 8 + su.get_size() / 2, (COLS - 80) / 2, "asciiarts/manual.txt");
+            // print sudoku
+            su.drawsudoku(stdscr, 10, COLS / 2);
+            // print timer
             mvprintw(11 + su.get_size() / 2, (COLS + 50) / 2, "Time: %02d:%02d", (int) timer / 60, (int) timer % 60);
+            refresh();
 
             wchar_t c = getch();
             if (c != ERR) {
-                switch (c) {
+                switch (cvt2pad(c)) {
                     case KEY_UP:
                         su.cursor_up();
                         break;
@@ -111,14 +132,21 @@ int main() {
                     case KEY_LEFT:
                         su.cursor_left();
                         break;
-                    case L'q':
-                        ok = true;
+                    case 'q':
+                        w_exit = newwin(7, 30, 12, (COLS - 30) / 2);
+                        if (ask_if_exit(w_exit, 1))
+                            ok = true;
+                        delwin(w_exit);
+                        last_timer = getTime();
                         break;
-                    case L'\n':
+                    case '\n':
                         su.remove();
                         break;
-                    case L'h':
+                    case 'h':
+                        if (su.is_correct())
+                            break;
                         su.hint();
+                        last_timer -= 20;
                         ok = su.finished();
                         break;
                     default:
@@ -127,8 +155,6 @@ int main() {
                         break;
                 }
             }
-            su.drawsudoku(stdscr, 10, COLS / 2);
-            refresh();
         }
         clear();
 
@@ -143,7 +169,7 @@ int main() {
                 if (c == L'\n' || c == L'q')
                     break;
                 wclear(win);
-                if (!draw_asciiart(win, 3, i--, "congradulations.txt"))
+                if (!draw_asciiart(win, 3, i--, "asciiarts/congradulations.txt"))
                     i = 79;
                 box(win, '-', 0);
                 wrefresh(win);
@@ -157,7 +183,7 @@ int main() {
                 if (c == L'\n' || c == L'q')
                     break;
                 wclear(win);
-                draw_asciiart(win, 1, 1, "fail" + to_string((i++) % 4) + ".txt");
+                draw_asciiart(win, 1, 1, "asciiarts/fail" + to_string((i++) % 4) + ".txt");
                 wrefresh(win);
                 system("sleep 0.2");
             }
