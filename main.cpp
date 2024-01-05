@@ -1,4 +1,5 @@
 // this is a sudoku game
+#include <csignal>
 #include "sudoku.h"
 
 using namespace std;
@@ -165,6 +166,9 @@ int main() {
         wchar_t c;
         if (su.finished()) {
             mvprintw(25, (COLS - 35) / 2, "Press Enter to Restart or q to Quit");
+            //print timer
+            mvprintw(23, (COLS - 17) / 2, "Finished in %02d:%02d", (int) timer / 60, (int) timer % 60);
+            refresh();
             WINDOW *win = newwin(18, 80, 5, (COLS - 80) / 2);
             int i = 79;
             while (true) {
@@ -174,12 +178,12 @@ int main() {
                 wclear(win);
                 if (!draw_asciiart(win, 3, i--, "asciiarts/congradulations.txt"))
                     i = 79;
-                box(win, '-', 0);
+                box(win, 0, 0);
                 wrefresh(win);
             }
         } else {
             mvprintw(25, (COLS - 35) / 2, "Press Enter to Restart or q to Quit");
-            WINDOW *win = newwin(10, 56, 5, (COLS - 56) / 2);
+            WINDOW *win = newwin(10, 57, 5, (COLS - 57) / 2);
             int i = 79;
             while (true) {
                 c = getch();
@@ -188,7 +192,7 @@ int main() {
                 wclear(win);
                 draw_asciiart(win, 1, 1, "asciiarts/fail" + to_string((i++) % 4) + ".txt");
                 wrefresh(win);
-                system("sleep 0.2");
+                usleep(200000);
             }
         }
         clear();

@@ -1,61 +1,34 @@
-#include <iostream>
-#include <vector>
-#include <cstdlib>
-#include <ctime>
+#include <random>
 #include <algorithm>
-#include <cmath>
-#include<iomanip>
 
 using namespace std;
 const int MaxSize = 16; // maximum array size
-bool create_sudoku(int sudoku[MaxSize][MaxSize], int sudoku_size);
-
-void print(int sudoku[MaxSize][MaxSize], int sudoku_size);
 
 bool isSafe(int sudoku[MaxSize][MaxSize], int row, int col, int num, int sudoku_size);
 
-bool create_sudoku(int sudoku[MaxSize][MaxSize], int sudoku_size) {
-    int row = -1;
-    int col = -1;
-    bool isEmpty = true;
-
-    // find the unfilled blank
-    for (int i = 0; i < sudoku_size; ++i) {
-        for (int j = 0; j < sudoku_size; ++j) {
-            if (sudoku[i][j] == 0) {
-                row = i;
-                col = j;
-                isEmpty = false;
-                break;
-            }
-        }
-        if (!isEmpty) {
-            break;
-        }
-    }
-
-    // if the sudoku is filled
-    if (isEmpty) {
+bool create_sudoku(int sudoku[MaxSize][MaxSize], int sudoku_size, int n = 0) {
+    if (n == sudoku_size * sudoku_size) {
         return true;
     }
-
+    int y = n / sudoku_size;
+    int x = n % sudoku_size;
+    if (sudoku[y][x] != 0) // skip filled cells
+        return create_sudoku(sudoku, sudoku_size, n + 1);
     vector<int> nums(sudoku_size);
     for (int i = 0; i < sudoku_size; ++i) {
         nums[i] = i + 1;
     }
-    random_shuffle(nums.begin(), nums.end());
+    shuffle(nums.begin(), nums.end(), std::mt19937(std::random_device()()));
 
-    for (int i = 0; i < nums.size(); i++) {
-        int num = nums[i];
-        if (isSafe(sudoku, row, col, num, sudoku_size)) {
-            sudoku[row][col] = num;
-            if (create_sudoku(sudoku, sudoku_size)) {
+    for (int num: nums) {
+        if (isSafe(sudoku, y, x, num, sudoku_size)) {
+            sudoku[y][x] = num;
+            if (create_sudoku(sudoku, sudoku_size, n + 1)) {
                 return true;
             }
-            sudoku[row][col] = 0;
         }
     }
-
+    sudoku[y][x] = 0; // reset on backtrack
     return false;
 }
 
@@ -85,16 +58,15 @@ bool isSafe(int sudoku[MaxSize][MaxSize], int row, int col, int num, int sudoku_
 
 
 vector<vector<int>> generate_blank(int sudoku_size, double rate_of_blank) {
+    int blank_num = sudoku_size * sudoku_size * rate_of_blank, x, y;
     vector<vector<int>> index_status(sudoku_size, vector<int>(sudoku_size, 0));
-    srand(time(NULL));
-    for (int i = 0; i < sudoku_size; i++) {
-        for (int j = 0; j < sudoku_size; j++) {
-            float x = rand() / (float) RAND_MAX;
-            if (x > rate_of_blank)
-                index_status[i][j] = 1;
-            else
-                index_status[i][j] = 0;
-        }
+    srand(time(nullptr));
+    for (int i = 0; i < blank_num; i++) {
+        do {
+            x = rand() % sudoku_size;
+            y = rand() % sudoku_size;
+        } while (index_status[x][y] == -1);
+        index_status[x][y] = -1;
     }
     return index_status;
 }

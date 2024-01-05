@@ -1,16 +1,6 @@
-//數獨（Sudoku）是源自 18 世紀瑞士的一種數學遊戲。是一種運用紙、筆進 行演算的邏輯遊戲。玩家需要根據 9×9 盤面上的已知數字，推理出所有剩餘空格的數字，並滿足每一行、每一列、每一個粗線宮（3*3）內的數字均含 1-9，不重覆。
-//需遵守以下要求：
-//1.	能隨機生成數獨題目。
-//2.	要可以自訂大小共4*4、9*9、16*16三種模式，大於9的數字用A(10)、B(11)、 C(12)、D(13)、E(14)、F(15)、G(16)代替。
-//3.	使用鍵盤I(上)J(左)K(下)L(右)鍵控制游標位置，游標顏色為藍色。
-//4.	在游標該點位置輸入數字時，數字便會顯示在該格位置。若數字正確顯示綠色，錯誤則為紅色。若游標位置為題目數字非空格，則無法輸入數字。
-//5.	遊戲中按下Esc鍵可以跳出遊戲回到遊戲首頁。
-//6.	當所有答案正確填完時跳出congratulations。
-
 #ifndef NYCU_SUDOKU_H
 #define NYCU_SUDOKU_H
 
-#include <vector>
 #include <ncurses.h>
 #include <fstream>
 #include <cassert>
@@ -22,7 +12,7 @@ typedef std::vector<std::vector<char>> Matrix;
 
 void init_ncurses() {
     setlocale(LC_ALL, "");
-    system("sleep 0.1");
+    usleep(100000);
     initscr();
     cbreak();
     noecho();
@@ -30,11 +20,11 @@ void init_ncurses() {
     keypad(stdscr, TRUE);
     curs_set(0);
     start_color();
-    init_pair(0, COLOR_WHITE, COLOR_BLACK);
-    init_pair(1, COLOR_BLUE, COLOR_CYAN);
-    init_pair(2, COLOR_BLUE, COLOR_YELLOW);
-    init_pair(3, COLOR_GREEN, COLOR_BLACK);
-    init_pair(4, COLOR_RED, COLOR_BLACK);
+    init_pair(0, COLOR_WHITE, COLOR_BLACK);//default
+    init_pair(1, COLOR_BLUE, COLOR_CYAN);  //cursor
+    init_pair(2, COLOR_BLUE, COLOR_YELLOW);//highlight
+    init_pair(3, COLOR_GREEN, COLOR_BLACK);//correct
+    init_pair(4, COLOR_RED, COLOR_BLACK);  //wrong
 }
 
 void end_ncurses() {
@@ -74,7 +64,7 @@ bool draw_asciiart(WINDOW *win, int y, int x, const std::string &file) {
         if (xx + line.size() > getmaxx(win)) {
             line = line.substr(0, getmaxx(win) - xx);
         }
-        if (line.size() > 0)
+        if (!line.empty())
             flag = true;
         mvwprintw(win, y++, xx, "%ls", line.c_str());
     }
@@ -136,7 +126,7 @@ class Choose {
 public:
     Choose(WINDOW *win, std::string *choices, int size, std::string title = "", int y = 0, int x = 0) {
         this->win = win;
-        this->title = title;
+        this->title = std::move(title);
         this->y = y;
         this->x = x;
         this->choices = choices;
@@ -193,11 +183,11 @@ public:
 
     void init(int size);
 
-    int get_size();
+    int get_size() const;
 
     void generate_all();
 
-    void generate(string difficulty);
+    void generate(const string &difficulty);
 
     void drawsudoku(WINDOW *win, int y, int center_x);
 
@@ -220,11 +210,11 @@ public:
     bool finished();
 
 private:
-    int size;
-    int box_size;
+    int size{};
+    int box_size{};
     Matrix matrix;
-    int cursor_x;
-    int cursor_y;
+    int cursor_x{};
+    int cursor_y{};
     vector<vector<int>> user_input;//0 for hide, 1 for show, 2 for input correct, 3 for input wrong
 };
 
@@ -236,10 +226,8 @@ Sudoku::Sudoku(int size) {
 Sudoku::Sudoku(const std::string &filename) {
     ifstream fin;
     fin.open(filename);
-    if (!fin) {
-        cout << "Error: file not found" << endl;
+    if (!fin)
         return;
-    }
     string s;
     char c;
     while (fin >> c)
@@ -253,7 +241,6 @@ Sudoku::Sudoku(const std::string &filename) {
 
 void Sudoku::drawsudoku(WINDOW *win, int y, int center_x) {
     std::vector<std::wstring> ans;
-    int curs_y = -1, curs_x = -1;
     for (int i = 0; i < box_size; i++) {
         ans.emplace_back(1, L'┣');
         for (int j = 0; j < box_size; j++)
@@ -265,8 +252,7 @@ void Sudoku::drawsudoku(WINDOW *win, int y, int center_x) {
 
     for (int i = 0; i < box_size; i++) {
         int pr_y = 0;
-        for (int ii = 0; ii < ans.size(); ii++) {
-            std::wstring &s = ans[ii];
+        for (auto &s: ans) {
             if (s[0] == L'┣') {
                 s.append(box_size * 2 + 1, L'━');
                 s.push_back(L'╋');
@@ -286,10 +272,6 @@ void Sudoku::drawsudoku(WINDOW *win, int y, int center_x) {
                             break;
                     }
                     s.push_back(' ');
-                    if (pr_x == cursor_x && pr_y == cursor_y) {
-                        curs_y = pr_y;
-                        curs_x = pr_x;
-                    }
                 }
                 pr_y++;
                 s.push_back(L'┃');
@@ -319,7 +301,7 @@ void Sudoku::drawsudoku(WINDOW *win, int y, int center_x) {
     }
 
 
-    int pr_y = 0, pr_x = 0, cursor_num = -1;
+    int pr_y = 0, pr_x = 0, cursor_num;
     if (user_input[cursor_y][cursor_x] == 0)
         cursor_num = matrix[cursor_y][cursor_x];
     else
@@ -407,9 +389,9 @@ bool Sudoku::input(wchar_t c) {
 }
 
 void Sudoku::generate_all() {
-    srand(time(NULL));
+    srand(time(nullptr));
     int sudoku[MaxSize][MaxSize] = {0};
-    create_sudoku(sudoku, size);
+    create_sudoku(sudoku, size, 0);
     for (int i = 0; i < size; i++)
         for (int j = 0; j < size; j++) {
             if (sudoku[i][j] > 9)
@@ -419,23 +401,15 @@ void Sudoku::generate_all() {
         }
 }
 
-void Sudoku::generate(string difficulty) {
+void Sudoku::generate(const string &difficulty) {
     double rate_of_blank;
     if (difficulty == "Easy")
         rate_of_blank = 0.5;
     else if (difficulty == "Medium")
         rate_of_blank = 0.6;
-    else if (difficulty == "Hard")
+    else
         rate_of_blank = 0.75;
-    auto tmp = generate_blank(size, rate_of_blank);
-    user_input = vector<vector<int>>(size, vector<int>(size, 0));
-    for (int i = 0; i < size; i++)
-        for (int j = 0; j < size; j++) {
-            if (tmp[i][j] == 0)
-                user_input[i][j] = -1;
-            else
-                user_input[i][j] = 0;
-        }
+    user_input = generate_blank(size, rate_of_blank);
 }
 
 void Sudoku::remove() {
@@ -448,7 +422,7 @@ void Sudoku::hint() {
         user_input[cursor_y][cursor_x] = matrix[cursor_y][cursor_x];
 }
 
-int Sudoku::get_size() {
+int Sudoku::get_size() const {
     return size;
 }
 
@@ -459,6 +433,7 @@ void Sudoku::init(int size) {
     this->matrix = Matrix(size, std::vector<char>(size, '.'));
     this->cursor_x = 2;
     this->cursor_y = 2;
+    this->user_input = vector<vector<int>>(size, vector<int>(size, 0));
 }
 
 bool Sudoku::is_correct() {
